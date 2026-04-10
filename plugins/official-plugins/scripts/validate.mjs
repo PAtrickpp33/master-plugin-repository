@@ -529,6 +529,36 @@ function checkPluginQuality(pluginDir, manifest) {
     }
   }
 
+  // Quality gate: README.md exists at the plugin root and mentions the plugin name
+  const readmeCandidates = ["README.md", "readme.md", "README.MD", "Readme.md"];
+  let readmeFile = null;
+  for (const candidate of readmeCandidates) {
+    const candidatePath = join(absDir, candidate);
+    if (existsSync(candidatePath)) { readmeFile = candidatePath; break; }
+  }
+  if (!readmeFile) {
+    qualityErr(manifestPath, 0, "QUALITY_README_MISSING",
+      "plugin has no README.md at the plugin root",
+      "every plugin needs a README so participants and reviewers know what it does, how to install it, and what's inside — a plugin without a README cannot be evaluated by judges",
+      `create ${absDir}/README.md with at minimum: an H1 with the plugin name '${(manifest && manifest.name) || "<plugin-name>"}', a one-sentence description, and the install command`);
+  } else if (manifest && typeof manifest.name === "string" && manifest.name.length > 0) {
+    let readmeText;
+    try { readmeText = readFileSync(readmeFile, "utf8"); }
+    catch {
+      qualityErr(readmeFile, 0, "QUALITY_README_UNREADABLE",
+        "README.md exists but could not be read",
+        "the validator must be able to read README.md to verify it mentions the plugin name",
+        "check file permissions on README.md");
+      return;
+    }
+    if (!readmeText.toLowerCase().includes(manifest.name.toLowerCase())) {
+      qualityErr(readmeFile, 0, "QUALITY_README_NO_NAME",
+        `README.md does not mention the plugin name '${manifest.name}'`,
+        "the kebab-case plugin name is the canonical identifier participants type to install your plugin (/plugin install <name>@master-plugin-repository); without it in the README, readers can't tell which plugin they're looking at",
+        `add the plugin name '${manifest.name}' somewhere in the README — typically as the H1 title (# ${manifest.name}) and inside the install command snippet`);
+    }
+  }
+
   // Quality gate: scan files for known secret patterns.
   // We deliberately do NOT scan for {{placeholder}} patterns in arbitrary files
   // because legitimate documentation often mentions the literal placeholder syntax;

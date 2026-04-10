@@ -58,6 +58,13 @@ Walk `PLUGIN_DIR` and confirm at least one of these exists:
 
 If **none**: error `QUALITY_NO_COMPONENTS` — "plugin has zero components; a plugin without skills/commands/agents/hooks/MCP does nothing useful".
 
+### 1d-2. Quality gate: README.md exists and mentions the plugin name
+
+Check if `PLUGIN_DIR/README.md` (or `readme.md` / `README.MD`) exists at the plugin root.
+
+- If **no README** found: error `QUALITY_README_MISSING` — "plugin has no README.md; reviewers and judges cannot evaluate a plugin without one. Create README.md with at minimum an H1 with the plugin name, a one-sentence description, and the install command."
+- If README exists: read its contents, lowercase, and substring-search for the lowercased plugin name from `plugin.json`. If the plugin name is **not present**: error `QUALITY_README_NO_NAME` — "README.md does not mention the plugin name '<name>'. The kebab-case name is the canonical identifier participants type to install your plugin (/plugin install <name>@master-plugin-repository); without it in the README, readers can't tell which plugin they're looking at. Add the name as an H1 (# <name>) and inside the install snippet."
+
 ### 1e. Quality gate: description length
 
 If `plugin.json.description` is a non-empty string but its length is **< 20 characters**, error: `QUALITY_DESCRIPTION_TOO_SHORT` — "description is too short to be useful in the marketplace UI; expand to a full sentence".

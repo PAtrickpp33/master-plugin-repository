@@ -79,6 +79,31 @@ These catch low-quality submissions that would technically validate but waste re
 - `hooks/hooks.json`
 - An `mcpServers` field in plugin.json
 
+### `QUALITY_README_MISSING`
+**What**: the plugin directory has no `README.md` at its root.
+
+**Why**: every plugin needs a README so participants and reviewers know what it does, how to install it, and what's inside. A plugin without a README cannot be evaluated by judges. The marketplace UI also surfaces the README as the canonical landing page.
+
+**Fix**: create `README.md` at the plugin root (sibling of `.claude-plugin/`). At minimum it should contain:
+- An H1 with the plugin name (e.g., `# my-plugin`)
+- A one-sentence description of what the plugin does
+- The install command: `/plugin install my-plugin@master-plugin-repository`
+- A short list of components shipped (skills, commands, agents, hooks)
+
+The validator accepts `README.md`, `readme.md`, `README.MD`, or `Readme.md` as the filename.
+
+### `QUALITY_README_NO_NAME`
+**What**: a `README.md` exists but does not mention the plugin's kebab-case name anywhere in its contents.
+
+**Why**: the kebab-case plugin name is the canonical identifier participants type to install your plugin. Without it in the README, readers cannot tell which plugin they are looking at, and the install command snippet is missing. This commonly happens when participants title their README with a humanized name like "My Cool Plugin" but the kebab name is `my-cool-plugin` — neither the title nor the body contains the kebab form.
+
+**Fix**: add the kebab-case plugin name (the value of `name` in `plugin.json`) somewhere in the README. The two natural places:
+
+1. As the H1 title: `# my-cool-plugin`
+2. Inside the install command: `/plugin install my-cool-plugin@master-plugin-repository`
+
+Both is best. The validator does a case-insensitive substring search for the exact kebab name, so `My-Cool-Plugin` works but `My Cool Plugin` (with spaces) does not.
+
 ### `QUALITY_TEMPLATE_PLACEHOLDER`
 **What**: a string field in plugin.json still contains `{{...}}` from the template.
 

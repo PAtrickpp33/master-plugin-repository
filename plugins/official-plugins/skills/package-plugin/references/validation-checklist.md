@@ -155,6 +155,16 @@ The plugin has no skills, no commands, no agents, no hooks, and no MCP servers.
 - **Why**: a plugin with only `plugin.json` + `README` does nothing — it's not a plugin
 - **Fix**: add at least one component: `skills/<name>/SKILL.md`, `commands/<name>.md`, `agents/<name>.md`, `hooks/hooks.json`, or an `mcpServers` field in plugin.json
 
+### `QUALITY_README_MISSING`
+The plugin directory has no `README.md` at its root.
+- **Why**: every plugin needs a README; reviewers and judges cannot evaluate a plugin without one
+- **Fix**: create `README.md` (sibling of `.claude-plugin/`) with at minimum an H1 containing the plugin name, a one-sentence description, and the install command
+
+### `QUALITY_README_NO_NAME`
+A README exists but does not mention the plugin's kebab-case name.
+- **Why**: the kebab-case name is the canonical identifier; without it in the README, readers can't tell which plugin they're looking at, and the install command snippet is missing
+- **Fix**: add the plugin name (e.g., `# my-plugin` H1, plus inside the install command). The validator does a case-insensitive substring match for the exact kebab form — `# my plugin` (with spaces) won't match `my-plugin`
+
 ### `QUALITY_TEMPLATE_PLACEHOLDER`
 A plugin.json string field still contains `{{...}}` from the template.
 - **Why**: you generated plugin.json from `templates/plugin.json.template` but forgot to fill in some fields. Unfilled placeholders appear literally in the marketplace UI.

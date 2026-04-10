@@ -49,6 +49,8 @@ The `--strict` flag turns on the **quality gate** in addition to the format gate
 - **`PLUGIN_DESCRIPTION_MISSING`** — plugin.json must have a description
 - **`QUALITY_DESCRIPTION_TOO_SHORT`** — plugin.json description must be ≥ 20 characters (catches "test", "demo", "todo")
 - **`QUALITY_NO_COMPONENTS`** — plugin must ship at least one component (skill, command, agent, hook, or MCP server). A plugin with only `plugin.json` + `README` is not a plugin.
+- **`QUALITY_README_MISSING`** — every plugin must have a `README.md` at its root
+- **`QUALITY_README_NO_NAME`** — the README must mention the plugin's kebab-case name somewhere (case-insensitive substring match)
 - **`QUALITY_TEMPLATE_PLACEHOLDER`** — `{{...}}` left unfilled in any plugin.json field
 - **`QUALITY_SECRET_PATTERN`** — files contain a string matching known secret formats (OpenAI/Anthropic API keys, GitHub PATs, AWS keys, Google keys, Slack tokens, JWTs). This is the single most common cause of compliance rejection.
 
