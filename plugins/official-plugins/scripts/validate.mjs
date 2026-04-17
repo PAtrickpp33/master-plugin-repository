@@ -446,6 +446,47 @@ const SECRET_PATTERNS = [
   { name: "Slack token",      re: /xox[baprs]-[a-zA-Z0-9-]{20,}/ },
   { name: "JWT-looking",      re: /eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/ },
 ];
+// Internal/confidential-reference patterns — catch strings that look like company-internal
+// identifiers a participant may have accidentally copied from their day-job environment
+// (corporate emails, internal collab-tool URLs). Only patterns that indicate internal/private
+// content are flagged; public product domains are not.
+//
+// Token strings are base64-encoded so the patterns themselves do not become a leak —
+// this validator ships publicly with every plugin install and must not disclose the
+// exact internal identifiers it protects against. Decoded at module load.
+function _tok(b64) { return Buffer.from(b64, "base64").toString("utf8"); }
+function _re(src) { return new RegExp(src); }
+function _esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+const _DOMAINS_CORP = ["b2tnLmNvbQ==", "b2tncm91cC5jb20=", "b2tjb2luLmNvbQ=="].map(_tok);
+const _DOMAIN_PUBLIC_CORP = _tok("b2t4LmNvbQ==");
+const _HOST_COLLAB_INTL = _tok("bGFya3N1aXRlLmNvbQ==");
+const _HOST_COLLAB_CN = _tok("ZmVpc2h1LmNu");
+const _TENANT_INTERNAL = _tok("b2tnLWJsb2Nr");
+const INTERNAL_LEAK_PATTERNS = [
+  ..._DOMAINS_CORP.map(d => ({
+    name: "corporate employee email",
+    re: _re(`[a-zA-Z0-9._+\\-]+@${_esc(d)}\\b`),
+  })),
+  // public-facing corp domain: narrow to first.last / first-last / first_last to skip role addresses
+  {
+    name: "corporate personal email",
+    re: _re(`[a-zA-Z0-9_+\\-]+[._\\-][a-zA-Z0-9_+\\-]+@${_esc(_DOMAIN_PUBLIC_CORP)}\\b`),
+  },
+  // internal collab-tool share URLs — private forms/docs/wiki/base
+  {
+    name: "internal collab share URL",
+    re: _re(`https?:\\/\\/[a-zA-Z0-9.\\-]+\\.${_esc(_HOST_COLLAB_INTL)}\\/share\\/[^\\s)"'<>]+`),
+  },
+  {
+    name: "internal collab share URL",
+    re: _re(`https?:\\/\\/[a-zA-Z0-9.\\-]+\\.${_esc(_HOST_COLLAB_CN)}\\/share\\/[^\\s)"'<>]+`),
+  },
+  // internal tenant-identifier subdomain
+  {
+    name: "internal tenant subdomain",
+    re: _re(`\\b${_esc(_TENANT_INTERNAL)}\\.[a-zA-Z0-9.\\-]+`),
+  },
+];
 const SCAN_EXTENSIONS = new Set([".md", ".json", ".yaml", ".yml", ".sh", ".py", ".js", ".ts", ".mjs", ".txt", ".env"]);
 const SKIP_DIRS = new Set([".git", "node_modules", "examples", "templates"]);
 
@@ -578,6 +619,17 @@ function checkPluginQuality(pluginDir, manifest) {
           `looks like an embedded secret: ${name} pattern detected`,
           "secrets in committed plugin files leak credentials and violate OKX compliance — this is the single biggest reason a submission gets rejected",
           `remove the secret from this file. If you need to reference a secret at runtime, read it from an environment variable instead of hardcoding`);
+      }
+    }
+    for (const { name, re } of INTERNAL_LEAK_PATTERNS) {
+      const m = text.match(re);
+      if (m) {
+        const idx = text.indexOf(m[0]);
+        const line = text.slice(0, idx).split("\n").length;
+        qualityErr(file, line, "QUALITY_INTERNAL_LEAK",
+          `looks like an internal/confidential reference: ${name} matched (${m[0]})`,
+          "corporate-internal emails, intranet/wiki URLs, and internal collaboration form links (Lark/Feishu share URLs, OKG/OKX/OKCoin/OKGroup employee addresses) are confidential and must never ship in a public plugin — they leak employee PII, internal URLs, and company structure",
+          "remove or redact the match. Use a generic placeholder instead (e.g. 'user@example.com', 'link provided by organizers', a public support URL). If you genuinely need to reference an OKX public resource, use the public product URL (www.okx.com / web3.okx.com), never an internal Lark/intranet URL");
       }
     }
   });

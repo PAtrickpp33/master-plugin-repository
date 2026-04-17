@@ -131,6 +131,30 @@ Both is best. The validator does a case-insensitive substring search for the exa
 
 The validator's regex is conservative — it only flags well-known formats. It will not catch every possible secret. This is a **safety net**, not a guarantee. Manually verify your plugin contains no sensitive material before submitting.
 
+### `QUALITY_INTERNAL_LEAK`
+**What**: a file in the plugin directory contains a string matching a known internal/confidential reference pattern. The gate is a **precise blacklist**, not a general "is this a work email" heuristic — it only matches a hardcoded set of internal tokens (base64-encoded in the validator source so this gate does not itself become a leak). **Personal addresses at public mail providers (gmail, outlook, icloud, qq, 163, yahoo, or personal domains) are never flagged** because they are not in the blacklist.
+
+Detected categories:
+
+- **Corporate employee emails** — two sub-rules:
+  - **Non-public corporate domain** → any address at these domains is flagged (these domains are not used for public services, so any address identifies an employee).
+  - **Public-facing corporate domain** → narrowed to personal-name form only: `first.last@...`, `first-last@...`, `first_last@...`. Generic role addresses (`support@`, `press@`, `contact@`, `noreply@`) on the public domain are **not** flagged — those are legitimate public references.
+- **Internal collaboration-tool share URLs** — any URL under an internal Lark or Feishu host, path `share/...`. These URLs resolve to private forms, docs, wikis, and bases.
+- **Internal tenant-identifier subdomains** — any URL containing the internal tenant subdomain token.
+
+**How it decides**: the validator applies the regex list to every scannable file (`.md`, `.json`, `.js`, `.ts`, `.py`, `.sh`, …) in the plugin directory. If any pattern matches, the file and line are flagged. The test is strict equality against the encoded token strings — there is no fuzzy matching, so adjacent domains (e.g. `okg-competitor.com`) do not trip the gate, and unrelated corporate emails (e.g. vendor contact addresses) do not trip it either.
+
+**Why**: these patterns leak employee PII, internal collaboration links, and company structure. The hackathon plugin marketplace is a public artifact — every file in a submitted plugin is visible to every other participant and indexed by GitHub's search. A single internal share-form URL committed in a README exposes an attack surface (forms targeted at employees), violates internal communications policy, and has required git-history rewrites and force-pushes to clean up in the past. This is **the second-most-common** cause of compliance rejection after embedded secrets.
+
+**Fix**:
+1. **Remove or redact the match**. Do not obfuscate (base64, character substitution) — just remove it.
+2. For corporate-internal email addresses, substitute with a public generic placeholder (`user@example.com`, `team@example.com`). If the plugin genuinely needs to display an email, route to the participant's own public address or a hackathon organizer's public address.
+3. For internal share URLs, replace with "link provided by organizers" or route to a public URL. Public product URLs (`www.okx.com/...`, `web3.okx.com/...`) are **not** flagged — only internal collab URLs.
+4. For internal tenant subdomain URLs, remove entirely. There is no public equivalent.
+5. **If the leak is already in git history** (not just the working tree), rewrite history via `git filter-repo --replace-text` + force-push. Removing from the latest commit is not enough — the old commits are still indexed on GitHub.
+
+Like `QUALITY_SECRET_PATTERN`, this gate is a conservative safety net. Generic-looking internal URLs (e.g., a custom-domain internal wiki) may not match any pattern. Manually audit your plugin for anything that looks like a day-job reference before submitting. If you believe you hit a false positive, flag it to the organizers rather than trying to evade the pattern.
+
 ## How to run the gate yourself before submitting
 
 ```

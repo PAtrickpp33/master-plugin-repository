@@ -23,6 +23,30 @@ Verify:
 
 If either check fails, stop and tell the user: "Run `/official-plugins:package-plugin` first to prepare your plugin." Do not proceed.
 
+## 0.5. Semantic leak pre-scan (LLM layer, runs before the regex gate)
+
+The strict regex validator at phase 1 catches known-internal tokens by literal pattern match. Before running it, do a semantic pass yourself — read the plugin's text files (`.md`, `.json`, `.yaml`, `.js`, `.ts`, `.py`, `.sh`) and flag anything that looks organizationally-internal but won't trip the regex:
+
+- Real person names in credits / authors / judges / contributor lists
+- Internal project or initiative codenames (unusual CamelCase names not matching any public product)
+- References to internal tools — Slack channels (`#channel`), Jira/Confluence tickets or URLs, `confluence.*`, `jira.*`, "as discussed in <internal-meeting>"
+- Confidential-looking metadata — "Confidential", "Do Not Distribute", "Internal Use Only", "Draft for review"
+- Inside-knowledge references — org structure, manager names, internal team or API names not in public docs
+
+Public product URLs (`www.okx.com/...`, `web3.okx.com/...`) and generic mentions of OKX as hackathon sponsor are acceptable. The signal is anything that would only be known to someone working inside the company.
+
+If you find any match, print each as:
+```
+SEMANTIC-BLOCKED  <file>:<approx-line>  <category>
+                  Excerpt: "<one-line quote>"
+                  Why: <one sentence>
+                  Fix: <concrete action>
+```
+
+Then stop and tell the participant: "Semantic pre-scan found <N> suspected internal references. Redact them at the source, re-run `/official-plugins:package-plugin` to re-validate, and invoke this skill again." Do **not** proceed to phase 1. Do **not** offer to fix inline. The semantic pre-scan is an unbypassable gate, same as `QUALITY_INTERNAL_LEAK`.
+
+If you find none, say `Semantic pre-scan clean — proceeding to regex validator.` and continue to phase 1.
+
 ## 1. Validate (always, strict mode) — THE GATE
 
 This is the **only gate** between low-quality submissions and the marketplace. Do not skip it. Do not weaken it. Do not let the participant talk you into bypassing it.
@@ -53,6 +77,7 @@ The `--strict` flag turns on the **quality gate** in addition to the format gate
 - **`QUALITY_README_NO_NAME`** — the README must mention the plugin's kebab-case name somewhere (case-insensitive substring match)
 - **`QUALITY_TEMPLATE_PLACEHOLDER`** — `{{...}}` left unfilled in any plugin.json field
 - **`QUALITY_SECRET_PATTERN`** — files contain a string matching known secret formats (OpenAI/Anthropic API keys, GitHub PATs, AWS keys, Google keys, Slack tokens, JWTs). This is the single most common cause of compliance rejection.
+- **`QUALITY_INTERNAL_LEAK`** — files contain internal/confidential references: corporate employee email addresses, internal collaboration-tool share URLs (Lark/Feishu private content), or internal tenant-identifier subdomains. These leak employee PII, internal collaboration links, and company structure — exactly what a public plugin marketplace must not expose. Triggers alongside `QUALITY_SECRET_PATTERN` as a hard block in strict mode. The exact token strings the gate matches are kept confidential (base64-encoded in the validator source); if your content is genuinely public and you hit a false positive, flag it to the organizers rather than guessing.
 
 Read full reference at `references/quality-gates.md` for detailed explanation of each.
 
@@ -315,6 +340,7 @@ Print the PR URL and:
 - **Never use --force or --no-verify on git or gh commands.**
 - **Never push to upstream main directly.** Always go through fork + branch + PR.
 - **Never include secrets, OKX-confidential data, or third-party IP** in any commit. If you spot any while reading the plugin contents, stop and warn.
+- **Never bypass `QUALITY_INTERNAL_LEAK` or `QUALITY_SECRET_PATTERN`.** Both are promoted to errors by `--strict` specifically because they are the patterns that caused prior compliance incidents. If the validator reports either, follow the standard BLOCKED handling — do not offer a workaround, do not amend the regex, do not suggest the participant "just submit anyway".
 - **Never assume `gh` is installed.** Check first.
 - **Refuse to overwrite an existing `plugins/<name>/`** in monorepo mode.
 - If a Bash command fails, stop and report the error verbatim. Do not retry silently.

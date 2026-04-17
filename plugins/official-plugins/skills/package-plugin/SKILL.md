@@ -98,6 +98,30 @@ After every component file is written, **show the participant the running tree**
 
 Save state: update `.package-plugin.state.json` to phase `ingested`.
 
+## 4.5. Semantic leak pre-scan (LLM layer)
+
+The regex validator at phase 5 catches a fixed list of known-internal tokens. It will miss anything it doesn't literally match — employee **names**, internal project codenames, Slack channel references, Jira ticket IDs, leaked internal-doc metadata, content that "reads like" internal communication. You are the second layer of defense — read every file you just ingested and use judgment.
+
+For each text file under `<target>/` (skip `examples/`, `templates/`, and any binary), read it and look for:
+
+- **Real person names near credits / author / judges / contributor lists** — especially patterns like `Judges: X, Y, Z` or `Authored by: <Full Name>`. When in doubt, redact to a role label.
+- **Internal project / initiative codenames** — unusual CamelCase names not matching any public product, often near "project", "initiative", "workstream".
+- **Internal tool references** — `#channel-name` (Slack), ticket IDs like `OKX-1234` / `INT-42`, `confluence.*/wiki/`, `jira.*/browse/`, email threads, "as discussed in <meeting>".
+- **Confidential metadata** — "Confidential", "Do Not Distribute", "Internal Use Only", "Draft for review", watermark markers.
+- **Any reference to the organizing company beyond public product mentions** — specifically references that suggest inside knowledge (org structure, manager names, internal team names, quarterly goals, seating plans, internal APIs not in public docs).
+
+For each match, print one block:
+```
+SEMANTIC  <file>:<approx-line>  <category>
+          Excerpt: "<one-line quote>"
+          Why suspicious: <one sentence>
+          Suggested fix: <concrete action>
+```
+
+If you find any: **stop and ask the participant to redact at the source before phase 5.** Do not silently fix. Do not proceed. Public product URLs (`www.okx.com/...`, `web3.okx.com/...`) and generic mentions of OKX as the hackathon sponsor are fine — the signal is anything that would only be known to someone inside the company.
+
+If you find none, say so explicitly: `Semantic scan clean — proceeding to regex validator.` Then continue to phase 5.
+
 ## 5. Run the validator
 
 Run via Bash:
@@ -127,6 +151,12 @@ If there are any errors:
 If only warnings remain (e.g., a SKILL.md description not starting with "This skill should be used when..."):
 - Show the warnings.
 - Ask the participant whether to fix or proceed. Recommend fixing.
+
+**Exception — never proceed past these two warning codes without fixing:**
+- `QUALITY_SECRET_PATTERN` — an embedded API key / token / credential
+- `QUALITY_INTERNAL_LEAK` — an internal/confidential reference (corporate email, internal Lark/Feishu share URL, intranet subdomain)
+
+Both are downgraded from error to warning in non-strict mode so you can see them while iterating, but `submit-plugin` will reject the submission in strict mode and the reviewer will reject it anyway. Walk the participant through removing the match or replacing it with a generic placeholder before moving on. Do **not** accept "I'll fix it later" on these two codes.
 
 Save state: once the validator returns clean, update `.package-plugin.state.json` to phase `validated`.
 
@@ -171,6 +201,7 @@ If participant picks **Zip upload**:
 - **Never skip the validator.** Even if the participant says "I trust it", run it.
 - If the participant aborts mid-workflow, the state file lets them resume — tell them so.
 - If the participant's source files contain any obvious secret patterns (keys with `KEY=`, `TOKEN=`, `SECRET=`, AWS access keys, JWT-looking strings), warn loudly and ask whether to redact before copying.
+- If the participant's source files contain **internal/confidential references** — corporate employee email addresses (at non-public corporate domains, or personal-name-form addresses at any corporate domain), internal collaboration-tool share URLs (Lark/Feishu private forms, docs, wikis, or bases), internal tenant-identifier subdomains, real employee names in credits or judge lists — warn loudly and require redaction before copying. These are the exact patterns that caused prior compliance incidents in this marketplace. The validator catches them automatically via `QUALITY_INTERNAL_LEAK`, but you should proactively flag them during ingest so the participant fixes them at the source, not just in the copy.
 - Never invent component types. If the participant mentions something the runbook doesn't cover, ask before guessing.
 
 ## Additional resources

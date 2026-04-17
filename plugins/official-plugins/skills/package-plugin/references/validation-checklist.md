@@ -175,6 +175,11 @@ A file in the plugin contains a string matching a known secret format (OpenAI/An
 - **Why**: secrets in committed plugin files leak credentials and violate OKX compliance — **the single biggest reason a submission is rejected**
 - **Fix**: (1) remove the secret from the file, (2) **rotate the credential at the source**, (3) refactor to read from environment variables at runtime, never hardcode
 
+### `QUALITY_INTERNAL_LEAK`
+A file contains a string matching an internal/confidential reference pattern — a corporate employee email, an internal collaboration-tool share URL (Lark/Feishu private content), or an internal tenant-identifier subdomain. The exact token strings are kept confidential in the validator source.
+- **Why**: these leak employee PII, internal collaboration links, and company structure. A public plugin marketplace must not expose them. **The second-most-common reason a submission is rejected**, right after embedded secrets.
+- **Fix**: (1) remove or redact the match — do not obfuscate, just remove, (2) use a generic placeholder (`user@example.com`, `"link provided by organizers"`) or a public product URL (`www.okx.com/...`, `web3.okx.com/...` are **not** flagged), (3) if the leak already made it into git history, rewrite with `git filter-repo --replace-text` and force-push — removing from the latest commit is not sufficient
+
 ## Pure warnings (always non-blocking)
 
 ### `PLUGIN_VERSION_FORMAT`
